@@ -1,0 +1,5 @@
+export type User = { id: string; steam_id: string; nickname: string; avatar: string | null; faceit_id: string | null; faceit_level: number | null; faceit_elo: number | null; faceit_updated_at: number | null; created_at: number };
+export type TeamMember = { user_id: string; nickname: string; steam_id: string; avatar: string | null; faceit_level: number | null; role: string };
+export type Team = { id: string; name: string; tag: string; description: string; captain_id: string; color: string; created_at: number; members: TeamMember[]; invite_code?: string };
+export type Challenge = { id: string; team_id: string; opponent_team_id: string | null; status: 'open' | 'accepted' | 'cancelled'; scheduled_at: number; format: 'bo1'; min_level: number; max_level: number; note: string; created_at: number; accepted_at: number | null };
+export type LeagueState = { user: User | null; teams: Team[]; challenges: Challenge[]; players: User[]; serverConnected: false; faceitConfigured: boolean; now: number };
