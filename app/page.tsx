@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, ChevronRight, Clock3, Copy, Crosshair, Flag, Gamepad2, Grid2X2, HelpCircle, Info, List, Loader2, LogOut, MapPin, Menu, Plus, Search, Server, Shield, Swords, Target, UserRound, Users, X } from "lucide-react";
 import type { Challenge, LeagueState, Team, TeamMember, User } from "@/lib/types";
+import { DEMO_ONLY } from "@/lib/deployment-mode";
 type View = "challenges" | "teams" | "players" | "matches" | "profile";
 type Modal = "team" | "challenge" | "invite" | "how" | "login" | "rules" | "privacy" | "leave" | { type: "match" | "team" | "player"; id: string } | null;
 const STORAGE = "bishkek-arena-demo-v1";
@@ -46,6 +47,7 @@ export default function ArenaPage() {
   const currentTeam = typeof modal === "object" && modal?.type === "team" ? data.teams.find(t => t.id === modal.id) : undefined;
   const currentPlayer = typeof modal === "object" && modal?.type === "player" ? data.players.find(p => p.id === modal.id) : undefined;
   const refreshLeague = useCallback(async (showError = false) => {
+    if (DEMO_ONLY) return null;
     try {
       const response = await fetch("/api/league", { credentials: "same-origin", cache: "no-store" });
       if (!response.ok) throw new Error();
@@ -60,6 +62,7 @@ export default function ArenaPage() {
   }, []);
   useEffect(() => {
     try { const saved = localStorage.getItem(STORAGE), parsed = saved ? JSON.parse(saved) as LeagueState : null; setDemo(parsed && Array.isArray(parsed.teams) && Array.isArray(parsed.challenges) && parsed.user?.id === "demo-me" ? parsed : demoState()); } catch { setDemo(demoState()); }
+    if (DEMO_ONLY) { setLoading(false); setHydrated(true); return; }
     const params = new URLSearchParams(window.location.search), invite = params.get("invite");
     if (invite) { setIsDemo(false); setInviteCode(invite); setModal("invite"); }
     if (params.has("auth") || params.has("auth_error")) { setPageError("Не удалось завершить вход через Steam. Попробуй ещё раз. Если проблема повторится, проверь настройки входа у администратора."); setIsDemo(false); }
@@ -67,7 +70,7 @@ export default function ArenaPage() {
     setHydrated(true);
   }, [refreshLeague]);
   useEffect(() => {
-    if (isDemo) return;
+    if (DEMO_ONLY || isDemo) return;
     const refresh = () => { if (document.visibilityState === "visible") void refreshLeague(); };
     const timer = window.setInterval(refresh, 30_000);
     document.addEventListener("visibilitychange", refresh);
@@ -85,7 +88,7 @@ export default function ArenaPage() {
   function openModal(next: Modal) { setError(""); setModal(next); }
   function navigate(next: View) { setView(next); setSearch(""); setMobileMenu(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function requireUser(next: Modal) { openModal(user ? next : "login"); }
-  function switchMode() { setIsDemo(!isDemo); setModal(null); setError(""); setView("challenges"); setFilter("all"); setSearch(""); }
+  function switchMode() { if (DEMO_ONLY) return; setIsDemo(!isDemo); setModal(null); setError(""); setView("challenges"); setFilter("all"); setSearch(""); }
   async function copy(value: string) { try { await navigator.clipboard.writeText(value); setToast("Скопировано"); } catch { setError("Выдели и скопируй текст вручную."); } }
   async function mutate(action: string, payload: Record<string, unknown> = {}): Promise<LeagueState | null> {
     setBusy(true); setError("");
@@ -110,10 +113,11 @@ export default function ArenaPage() {
           c.status = "accepted"; c.opponent_team_id = myTeam.id; c.accepted_at = Date.now();
         } else if (action === "cancelChallenge") { const c = next.challenges.find(item => item.id === payload.challengeId); if (c) c.status = "cancelled"; }
         else if (action === "leaveTeam") { if (myMatches.some(c => c.status !== "cancelled" && c.scheduled_at > Date.now())) throw new Error("Сначала отмени предстоящие вызовы команды."); next.teams = next.teams.filter(t => t.id !== myTeam?.id); }
-        else if (action === "joinTeam") throw new Error("Для приглашения друзей переключись в реальный режим. Демо-коды работают только в этом браузере.");
+        else if (action === "joinTeam") throw new Error(DEMO_ONLY ? "В этой демоверсии приглашения других игроков недоступны. Создай свою команду — четыре вымышленных игрока добавятся автоматически." : "Для приглашения друзей переключись в реальный режим. Демо-коды работают только в этом браузере.");
         else if (action === "updateProfile") { next.user!.nickname = String(payload.nickname); next.players = next.players.map(p => p.id === "demo-me" ? next.user! : p); next.teams.forEach(t => t.members.forEach(m => { if (m.user_id === "demo-me") m.nickname = String(payload.nickname); })); }
         setDemo(next); return next;
       }
+      if (DEMO_ONLY) throw new Error("Демо ещё загружается. Повтори действие через секунду.");
       const r = await fetch("/api/league", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...payload }) }), result = await r.json() as LeagueState & { error?: string };
       if (!r.ok) throw new Error(result.error || "Не удалось выполнить действие."); setLive(result); return result;
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось выполнить действие."); return null; } finally { setBusy(false); }
@@ -135,8 +139,9 @@ export default function ArenaPage() {
     <div className="sidebar-bottom"><div className="city-line"><MapPin size={15}/>Бишкек, Кыргызстан</div><p className="side-bottom-note">Пять игроков. Одна команда.<br/>Твой следующий соперник — здесь.</p><button className="help-link" onClick={()=>openModal("how")}><HelpCircle size={15}/>Как это работает</button></div>
   </aside>
   <main className="main">
-    <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu" onClick={()=>setMobileMenu(true)} aria-label="Меню"><Menu/></button><span>Площадка</span><ChevronRight size={12}/><strong>{LABELS[view]}</strong></div><div className="top-actions"><span className="region"><MapPin size={13}/>Бишкек · UTC+6</span>{!isDemo&&user?<button className="steam-button" onClick={()=>navigate("profile")}><UserRound/>{user.nickname}</button>:<a className="steam-button" href={steamHref} target="_top"><SteamIcon/>Войти через Steam</a>}</div></header>
-    <div className="mode-bar"><div className="mode-label"><span className="mode-dot"/>{isDemo?"Демо · данные на этом устройстве":"Реальный режим"}</div><span className="mode-caption">{isDemo?"Вымышленные команды для знакомства с платформой":"Команды и вызовы сохраняются на сайте"}</span><button className="text-button" onClick={switchMode}>{isDemo?"Реальный режим":"Открыть демо"}<ArrowUpRight size={13}/></button></div>
+    <header className="topbar"><div className="breadcrumbs"><button className="mobile-menu" onClick={()=>setMobileMenu(true)} aria-label="Меню"><Menu/></button><span>Площадка</span><ChevronRight size={12}/><strong>{LABELS[view]}</strong></div><div className="top-actions"><span className="region"><MapPin size={13}/>Бишкек · UTC+6</span>{DEMO_ONLY?<button className="steam-button" onClick={()=>navigate("profile")}><UserRound/>Демо-профиль</button>:!isDemo&&user?<button className="steam-button" onClick={()=>navigate("profile")}><UserRound/>{user.nickname}</button>:<a className="steam-button" href={steamHref} target="_top"><SteamIcon/>Войти через Steam</a>}</div></header>
+    <div className="mode-bar"><div className="mode-label"><span className="mode-dot"/>{isDemo?"Демо · данные на этом устройстве":"Реальный режим"}</div><span className="mode-caption">{isDemo?"Вымышленные команды для знакомства с платформой":"Команды и вызовы сохраняются на сайте"}</span>{!DEMO_ONLY&&<button className="text-button" onClick={switchMode}>{isDemo?"Реальный режим":"Открыть демо"}<ArrowUpRight size={13}/></button>}</div>
+    {DEMO_ONLY&&<p className="notice neutral"><Info size={16}/>Это демоверсия: создай команду и попробуй вызовы. Все данные сохраняются только в твоём браузере. Steam-вход, приглашения друзей и игровые серверы здесь недоступны.</p>}
     {pageError&&<div className="notice error" role="status">{pageError}<button className="text-button" onClick={()=>setPageError("")}>Закрыть</button></div>}
     {!hydrated||(!isDemo&&loading)?<div className="empty-state"><Loader2/><p>Загружаем площадку…</p></div>:<>
     {view==="challenges"&&<>

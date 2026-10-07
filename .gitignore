@@ -40,6 +40,7 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
+/dist-pages/
 /.wrangler/
 # Checkout-local execution profile and tool state; never publish them.
 /.sites-runtime/

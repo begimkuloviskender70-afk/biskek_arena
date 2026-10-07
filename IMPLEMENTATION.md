@@ -29,7 +29,17 @@ npm run dev
 
 Steam OpenID не требует API key. Без ключа профиля новый игрок получает нейтральный ник и меняет его сам. Необязательные секреты STEAM_WEB_API_KEY и FACEIT_API_KEY задаются в окружении Sites; локально — в игнорируемом .dev.vars. Секреты не коммитить. Origin callback жёстко связан с текущим доменом; при смене домена обновить allowlist в lib/steam-openid.ts и повторить проверки.
 
-## Проверки
+## GitHub Pages: публичная демоверсия
+
+Для самостоятельной проверки интерфейса добавлена отдельная статическая сборка: `npm run build:pages`, результат — `dist-pages/`. Локальная проверка: `npm run preview:pages`, адрес `/biskek_arena/` на порту, указанном Vite.
+
+`.github/workflows/pages.yml` собирает демоверсию на Node.js 24 и публикует её после push в `main`. В Settings → Pages источником должен быть GitHub Actions. Успешность публикации проверять по завершению workflow, а не по факту отправки коммита.
+
+Сборка использует существующий `app/page.tsx` и стили. В `vite.pages.config.ts` модуль `lib/deployment-mode.ts` подменяется на `static-demo/deployment-mode.ts`: отключены запросы реального API, переключение режима и основной вход Steam; отображается пояснение о локальных демоданных. Параметры `invite` и `auth_error` не переводят эту сборку в реальный режим. Создание команды, публикация и принятие демовызова, профиль и сохранение в браузере доступны. Приглашения других игроков, Steam-вход и игровые серверы недоступны на Pages.
+
+Обычные `npm run dev` и `npm run build` сохраняют серверную версию Vinext/Workers. Регистрация Sites не менялась. При переименовании GitHub-репозитория обновить `base` в `vite.pages.config.ts`.
+
+## Проверки текущей версии
 
 ```sh
 node --experimental-transform-types --test tests/league.test.mjs tests/auth-openid.test.mjs tests/auth-session.test.mjs
