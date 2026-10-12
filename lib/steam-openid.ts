@@ -1,7 +1,7 @@
 /** Pure protocol helpers. No user identity is trusted until Steam verifies the signature. */
 export const STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login";
 export const OPENID_NAMESPACE = "http://specs.openid.net/auth/2.0";
-export const PUBLIC_SITE_ORIGIN = "https://bishkek-arena-cs2.racing-trout-8976.chatgpt.site";
+export const PUBLIC_SITE_ORIGIN = "https://bishkek-arena-cs2.beautips5kg.chatgpt.site";
 export const AUTH_STATE_TTL = 10 * 60;
 export const SESSION_TTL = 14 * 24 * 60 * 60;
 

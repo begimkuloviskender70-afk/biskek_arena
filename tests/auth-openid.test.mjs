@@ -28,7 +28,7 @@ function validParams() {
 test("only the pinned production origin or explicit development localhost is accepted", () => {
   assert.equal(canonicalOrigin(`${PUBLIC_SITE_ORIGIN}/api/auth/steam`), PUBLIC_SITE_ORIGIN);
   assert.equal(canonicalOrigin("http://localhost:3000/a", undefined, true), "http://localhost:3000");
-  for (const url of ["https://evil.example/", "https://bishkek-arena-cs2.racing-trout-8976.chatgpt.site.evil.example/", "http://localhost:3000/"]) {
+  for (const url of ["https://evil.example/", `${PUBLIC_SITE_ORIGIN}.evil.example/`, "https://bishkek-arena-cs2.racing-trout-8976.chatgpt.site/", "http://localhost:3000/"]) {
     assert.throws(() => canonicalOrigin(url));
   }
   assert.throws(() => canonicalOrigin(PUBLIC_SITE_ORIGIN, "https://evil.example"));
