@@ -67,7 +67,7 @@ async function enrichSteamProfile(db: D1Database, user: User): Promise<void> {
   if (!key) return;
   const endpoint = new URL("https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/");
   endpoint.search = new URLSearchParams({ key, steamids: user.steam_id }).toString();
-  const response = await fetch(endpoint, { redirect: "error", signal: AbortSignal.timeout(6_000) });
+  const response = await fetch(endpoint, { redirect: "manual", signal: AbortSignal.timeout(6_000) });
   if (!response.ok) return;
   const data = await response.json() as { response?: { players?: { steamid?: string; personaname?: string; avatarfull?: string }[] } };
   const profile = data.response?.players?.find((player) => player.steamid === user.steam_id);

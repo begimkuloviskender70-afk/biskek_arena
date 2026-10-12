@@ -28,7 +28,7 @@ export async function syncFaceit(db: D1Database, user: User): Promise<void> {
   try {
     response = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(6_000),
     });
   } catch { throw new FaceitError("unavailable"); }

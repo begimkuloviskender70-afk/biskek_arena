@@ -168,7 +168,7 @@ test("FACEIT refresh verifies the Steam identity and preserves prior data on API
   testEnv.FACEIT_API_KEY = "test-only-key";
   context.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(new URL(url).searchParams.get("game_player_id"), user.steam_id);
-    assert.equal(options.redirect, "error");
+    assert.equal(options.redirect, "manual");
     return Response.json({ player_id: "faceit-test-user", steam_id_64: user.steam_id, games: { cs2: { game_player_id: user.steam_id, skill_level: 7, faceit_elo: 1700 } } });
   });
   await syncFaceit(db, user);

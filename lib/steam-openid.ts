@@ -158,7 +158,9 @@ export async function verifyWithSteam(assertion: ValidatedSteamAssertion): Promi
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: assertion.verificationBody.toString(),
-    redirect: "error",
+    // workerd rejects redirect:"error" before sending the request. Do not follow
+    // redirects: the response.ok check below rejects every 3xx response instead.
+    redirect: "manual",
   }, 10_000);
   if (!response.ok || !verifiedSteamResponse(await response.text())) throw new SteamAuthError("verification_failed");
 }
