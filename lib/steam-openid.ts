@@ -143,13 +143,22 @@ export function verifiedSteamResponse(body: string): boolean {
   return result.get("is_valid") === "true" && result.get("ns") === OPENID_NAMESPACE;
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function verifyWithSteam(assertion: ValidatedSteamAssertion): Promise<void> {
-  const response = await fetch(STEAM_OPENID_ENDPOINT, {
+  const response = await fetchWithTimeout(STEAM_OPENID_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: assertion.verificationBody.toString(),
     redirect: "error",
-    signal: AbortSignal.timeout(10_000),
-  });
+  }, 10_000);
   if (!response.ok || !verifiedSteamResponse(await response.text())) throw new SteamAuthError("verification_failed");
 }

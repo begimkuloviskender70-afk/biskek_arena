@@ -47,6 +47,8 @@ Sites подтвердил успешную первую публикацию (d
 
 При ошибке callback Steam сервер записывает в Worker-логи только ограниченный код причины (`steam_auth_callback_failed`), без URL, подписи, cookie, токенов и данных аккаунта. Это помогает диагностировать реальный вход, не раскрывая данные OpenID.
 
+Проверка подписи Steam использует `AbortController` и таймер вместо `AbortSignal.timeout`, чтобы одинаково работать в Node.js и Cloudflare Workers.
+
 Для упаковки Sites на Windows нужны Node.js 24 и `C:/Program Files/Git/bin` в PATH, а также `TAR_OPTIONS=--force-local`, чтобы tar не трактовал `C:` как удалённый сервер. Архивы хранить в игнорируемом `outputs/`. Учётные данные передавать workflow только через скрытый stdin.
 
 ## Проверки текущей версии

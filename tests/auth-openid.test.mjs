@@ -100,6 +100,7 @@ test("signature verification posts only to Steam, disables redirects and rejects
     assert.equal(url, STEAM_OPENID_ENDPOINT);
     assert.equal(options.method, "POST");
     assert.equal(options.redirect, "error");
+    assert.ok(options.signal instanceof AbortSignal);
     assert.equal(new URLSearchParams(options.body).get("openid.mode"), "check_authentication");
     return new Response(`ns:${OPENID_NAMESPACE}\nis_valid:false\n`);
   });
