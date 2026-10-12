@@ -89,11 +89,13 @@ export async function finishSteamLogin(request: Request): Promise<Response> {
   const origin = getAuthOrigin(request);
   const clearState = authCookie("state", "", origin, 0);
   const params = new URL(request.url).searchParams;
+  let phase = "validate_request";
   try {
     if (request.url.length > 16_384) throw new SteamAuthError("invalid_assertion");
     const state = params.get("state") || "";
     const verifier = readCookie(request, cookieName("state", origin)) || "";
     if (!/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(verifier)) throw new SteamAuthError("invalid_state");
+    phase = "load_state";
     const db = authDb();
     const [stateHash, cookieHash] = await Promise.all([hashToken(state), hashToken(verifier)]);
     const pending = await db.prepare("SELECT * FROM auth_states WHERE state_hash = ? AND cookie_hash = ? AND expires_at > ?")
@@ -103,13 +105,16 @@ export async function finishSteamLogin(request: Request): Promise<Response> {
       await db.prepare("DELETE FROM auth_states WHERE state_hash = ? AND cookie_hash = ?").bind(stateHash, cookieHash).run();
       return redirect(`${origin}/?auth_error=cancelled`, [clearState]);
     }
+    phase = "validate_assertion";
     const expectedReturnTo = steamLoginUrl(origin, state).returnTo;
     if (pending.return_to !== expectedReturnTo) throw new SteamAuthError("invalid_return_to");
     const assertion = validateSteamAssertion(params, expectedReturnTo);
+    phase = "verify_provider";
     await verifyWithSteam(assertion);
     const now = Date.now();
     // Both changes run transactionally. Only one concurrent callback can consume the
     // browser-bound state, and a nonce must have been inserted exactly once.
+    phase = "consume_assertion";
     const consumed = await db.batch([
       db.prepare("INSERT OR IGNORE INTO openid_nonces (nonce, expires_at) VALUES (?, ?)")
         .bind(await hashToken(assertion.nonce), now + AUTH_STATE_TTL * 1000 + 60_000),
@@ -117,24 +122,28 @@ export async function finishSteamLogin(request: Request): Promise<Response> {
         .bind(stateHash, cookieHash, now),
     ]);
     if (consumed[0].meta.changes !== 1 || consumed[1].results.length !== 1) throw new SteamAuthError("replayed_assertion");
+    phase = "create_user";
     await db.prepare("INSERT INTO users (id, steam_id, nickname, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(steam_id) DO NOTHING")
       .bind(crypto.randomUUID(), assertion.steamId, `Игрок ${assertion.steamId.slice(-6)}`, now).run();
     const user = await db.prepare("SELECT * FROM users WHERE steam_id = ?").bind(assertion.steamId).first<User>();
     if (!user) throw new SteamAuthError("account_unavailable");
     // Profile services are optional: authentication succeeds even if either service fails.
+    phase = "enrich_profile";
     await Promise.allSettled([enrichSteamProfile(db, user), syncFaceit(db, user)]);
     const token = randomToken();
     const previous = readCookie(request, cookieName("session", origin));
     const statements = [db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
       .bind(await hashToken(token), user.id, Date.now() + SESSION_TTL * 1000)];
     if (previous && /^[a-f0-9]{64}$/.test(previous)) statements.push(db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await hashToken(previous)));
+    phase = "create_session";
     await db.batch(statements);
     return redirect(`${origin}${safeReturnPath(pending.redirect_to)}`, [clearState, authCookie("session", token, origin, SESSION_TTL)]);
   } catch (error) {
     // Never echo provider parameters, database errors, signatures or credentials.
     // Keep a bounded reason in Worker logs so production callback failures can be diagnosed.
     const code = error instanceof SteamAuthError ? error.code : "unexpected";
-    console.error("steam_auth_callback_failed", code);
+    const kind = error instanceof Error ? error.name : typeof error;
+    console.error("steam_auth_callback_failed", phase, code, kind);
     return redirect(`${origin}/?auth_error=steam_error`, [clearState]);
   }
 }
