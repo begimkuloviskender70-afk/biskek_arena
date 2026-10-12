@@ -130,8 +130,11 @@ export async function finishSteamLogin(request: Request): Promise<Response> {
     if (previous && /^[a-f0-9]{64}$/.test(previous)) statements.push(db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await hashToken(previous)));
     await db.batch(statements);
     return redirect(`${origin}${safeReturnPath(pending.redirect_to)}`, [clearState, authCookie("session", token, origin, SESSION_TTL)]);
-  } catch {
+  } catch (error) {
     // Never echo provider parameters, database errors, signatures or credentials.
+    // Keep a bounded reason in Worker logs so production callback failures can be diagnosed.
+    const code = error instanceof SteamAuthError ? error.code : "unexpected";
+    console.error("steam_auth_callback_failed", code);
     return redirect(`${origin}/?auth_error=steam_error`, [clearState]);
   }
 }
